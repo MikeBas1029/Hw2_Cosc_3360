@@ -130,7 +130,9 @@ int main(int argc, char** argv) {
         return 1;
     }
     while(getline(file2, inputLine)){
-        cout<< "hello\n";
+        while(inputLine.find(',') != string::npos ){
+
+        }
     }
 
 
