@@ -24,6 +24,7 @@ struct process{
     int deadline;
     int compTime;
     int amount;
+    vector<string> actions;
 };
 
 //------------------------------------------------------------------------------------------------------------
@@ -45,7 +46,7 @@ bool request(int val){  //semaphore
 
 }
 
-void release(int val){
+void release(int val){  //semaphore
 
 }
 
@@ -63,7 +64,6 @@ int main(int argc, char** argv) {
 
     vector<resource> resources;
     vector<process> processes;
-
 
 //------------------------------------------------------------------------------------------------------------
 //File reading:
@@ -101,21 +101,43 @@ int main(int argc, char** argv) {
     int allocation[resources.at(0).amountRes][processes.at(0).amount];
     int available[resources.at(0).amountRes];
 
-    ifstream file2(argv[2]);        //to gather the instances and contain them in the resources vector
-    while(getline(file2, inputLine)){
+    for(int i = 0; i < 3; i++){
+        getline(file1, inputLine);
         if(inputLine.find("available") != string::npos){
-
+            int index = stoi(inputLine.substr(inputLine.find("available") + 10, 1)) - 1;
+            available[index] = stoi(inputLine.substr(inputLine.find('=')+1));
+            //cout<< inputLine.substr(inputLine.find("available") + 10, 1)<< endl;
+            //cout<< inputLine.substr(inputLine.find('=')+1)<< endl;
         }
-        if(inputLine.find("max") != string::npos){
-
+        if(inputLine.find("max") != string::npos) {
+            int row = stoi(inputLine.substr(inputLine.find("max") + 4, 1)) - 1;
+            int col = stoi(inputLine.substr(inputLine.find("max") + 6, 1)) - 1;
+            max[row][col] = stoi(inputLine.substr(inputLine.find('=')+1));
+            //cout<< row<< endl;
+            //cout<< col<< endl;
         }
+    }
+
+    for(int r = 0; r < resources.at(0).amountRes; r++){         //filling up allocation matrix to contain 0's
+        for(int c = 0; c < processes.at(0).amount; c++){
+            allocation[r][c] = 0;
+        }
+    }
+
+    ifstream file2(argv[2]);        //to gather the instances and contain them in the resources vector
+    if(!file2.is_open()){               //If it can't find file
+        cout<< "No file can be found.\n";
+        return 1;
+    }
+    while(getline(file2, inputLine)){
+        cout<< "hello\n";
     }
 
 
 //------------------------------------------------------------------------------------------------------------
 //Resource Management:
 
-    //int sem_id = semget(IPC_PRIVATE, 1, 0666 | IPC_CREAT);
+
 
 //------------------------------------------------------------------------------------------------------------
 //Process Management:
