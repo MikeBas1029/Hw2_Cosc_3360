@@ -21,10 +21,9 @@ struct resource{
 };
 
 struct process{
-    int deadline;
-    int compTime;
     int amount;
-    vector<string> actions;
+    map<int, vector<string>> actions;      //Key will be the process number and the value will be functions called for the process
+    map<int, int> deadAndCompTime;         //Key will be deadline and the pair would be the computation time. The amount of them will be in correlation to their process
 };
 
 //------------------------------------------------------------------------------------------------------------
@@ -67,7 +66,7 @@ void useResource(){
 int main(int argc, char** argv) {
 
     vector<resource> resources;
-    vector<process> processes;
+    process p;
 
 //------------------------------------------------------------------------------------------------------------
 //File reading:
@@ -94,16 +93,16 @@ int main(int argc, char** argv) {
                 resources.push_back(r);
                 //cout<< "Resources: "<< resources.at(0).amountRes<< endl;
             } else if(i == 1){
-                process p = {.amount = numVal};
-                processes.push_back(p);
+                p = {.amount = numVal};
+                //processes.push_back(p);
                 //cout<< "Processes: "<<  processes.at(0).amount<< endl;
             }
         }
     }
 
-    int max[resources.at(0).amountRes][processes.at(0).amount];
-    int allocation[resources.at(0).amountRes][processes.at(0).amount];
-    int available[resources.at(0).amountRes];
+    int max[resources.at(0).amountRes][p.amount];
+    int allocation[resources[0].amountRes][p.amount];
+    int available[resources[0].amountRes];
 
     for(int i = 0; i < 3; i++){
         getline(file1, inputLine);
@@ -122,8 +121,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    for(int r = 0; r < resources.at(0).amountRes; r++){         //filling up allocation matrix to contain 0's
-        for(int c = 0; c < processes.at(0).amount; c++){
+    for(int r = 0; r < resources[0].amountRes; r++){         //filling up allocation matrix to contain 0's
+        for(int c = 0; c < p.amount; c++){
             allocation[r][c] = 0;
         }
     }
@@ -140,7 +139,7 @@ int main(int argc, char** argv) {
             cout<< "it has exceed the amount of resources\n";
             break;
         }else{
-            if(resources.size() <= cout++){     //if it hasn't been created just yet
+            if(resources.size() > count+1){     //if it hasn't been created just yet
                 resource r = {.amountRes = resources[0].amountRes};
                 resources.push_back(r);
             }
@@ -182,18 +181,41 @@ int main(int argc, char** argv) {
      */
 
     int processNum;
+    int d, c;   //deadline and computation time
     while(getline(file1, inputLine)){      //reading each process and putting them into p struct
         inputLine.erase(remove_if(inputLine.begin(), inputLine.end(), [](unsigned char c) { return std::isspace(c); }), inputLine.end());   //to remove any possible spaces
         if(inputLine.find("process") != string::npos){
             processNum = stoi(inputLine.substr(inputLine.find("process") + 8, 1));
             count = 0;
             //cout<< "This process is: "<< processNum<< endl;
+        }else {
+            if (count == 0) {     //deadline
+                d = stoi(inputLine.substr(0));
+                p.deadAndCompTime[d];
+            } else if (count == 1) {       //computation time
+                c = stoi(inputLine.substr(0));
+                p.deadAndCompTime[d] = c;
+            }else {
+                p.actions[processNum].push_back(inputLine);
+            }
+            count++;
         }
-        if(processesNum){
-            
-        }
-
     }
+
+    /*for (const auto& pair : p.actions) {
+        cout << "Process Number: " << pair.first << endl;
+        cout << "Actions:" << endl;
+        for (const auto& action : pair.second) {
+            cout << action << endl;
+        }
+        cout << endl;
+    }
+
+    cout << "Deadlines and Computation Times:" << endl;
+    for (const auto& pair : p.deadAndCompTime) {
+        cout << "Deadline: " << pair.first << ", Computation Time: " << pair.second << endl;
+    }
+     */
 
 
 //------------------------------------------------------------------------------------------------------------
