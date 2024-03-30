@@ -6,6 +6,7 @@
 #include <fstream>
 #include <algorithm>
 #include <sstream>
+#include <limits>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -17,20 +18,39 @@ using namespace std;
 
 struct resource{
     map<string, vector<string>> instance;   //key will be the type and the value is the
-    int amountRes;
+    int amountRes = 0;
 };
 
 struct process{
-    int amount;
-    map<int, vector<string>> actions;      //Key will be the process number and the value will be functions called for the process
-    map<int, int> deadAndCompTime;         //Key will be deadline and the pair would be the computation time. The amount of them will be in correlation to their process
+    int amount = 0;
+    int processNum = 0;
+    int deadline = 0;
+    int compTime = 0;
+    vector<string> actions;
 };
 
 //------------------------------------------------------------------------------------------------------------
 //Functions:
 
-void scheduler(){       //EDF Algorithm
+void scheduler(vector<process>& p){       //EDF & LJF Algorithm
+    sort(p.begin(), p.end(), [](const process& a, const process& b) {
+        return a.deadline < b.deadline;
+    });
 
+    int currentTime = 0;
+    for (auto& proc : p) {
+        while (currentTime < proc.deadline && proc.compTime > 0) {
+            cout << "Executing task for process " << proc.processNum << " with deadline: " << proc.deadline << endl;
+            proc.compTime--;
+            currentTime++;
+        }
+
+        if (proc.compTime <= 0) {
+            cout << "Process " << proc.processNum << " completed." << endl;
+        } else {
+            cout << "Process " << proc.processNum << " missed its deadline." << endl;
+        }
+    }
 }
 
 void calcNeed(){
@@ -66,7 +86,7 @@ void useResource(){
 int main(int argc, char** argv) {
 
     vector<resource> resources;
-    process p;
+    vector<process> p;
 
 //------------------------------------------------------------------------------------------------------------
 //File reading:
@@ -93,15 +113,15 @@ int main(int argc, char** argv) {
                 resources.push_back(r);
                 //cout<< "Resources: "<< resources.at(0).amountRes<< endl;
             } else if(i == 1){
-                p = {.amount = numVal};
-                //processes.push_back(p);
+                process proc = {.amount = numVal};
+                p.push_back(proc);
                 //cout<< "Processes: "<<  processes.at(0).amount<< endl;
             }
         }
     }
 
-    int max[resources.at(0).amountRes][p.amount];
-    int allocation[resources[0].amountRes][p.amount];
+    int max[resources.at(0).amountRes][p[0].amount];
+    int allocation[resources[0].amountRes][p[0].amount];
     int available[resources[0].amountRes];
 
     for(int i = 0; i < 3; i++){
@@ -122,7 +142,7 @@ int main(int argc, char** argv) {
     }
 
     for(int r = 0; r < resources[0].amountRes; r++){         //filling up allocation matrix to contain 0's
-        for(int c = 0; c < p.amount; c++){
+        for(int c = 0; c < p[0].amount; c++){
             allocation[r][c] = 0;
         }
     }
@@ -186,53 +206,46 @@ int main(int argc, char** argv) {
         inputLine.erase(remove_if(inputLine.begin(), inputLine.end(), [](unsigned char c) { return std::isspace(c); }), inputLine.end());   //to remove any possible spaces
         if(inputLine.find("process") != string::npos){
             processNum = stoi(inputLine.substr(inputLine.find("process") + 8, 1));
+            if(p.size() == processNum){
+                p[0].processNum = processNum;
+            }else if(processNum > p.size()){
+                process proc = {.amount = p[0].amount};
+                proc.processNum = processNum;
+                p.push_back(proc);
+            }
             count = 0;
             //cout<< "This process is: "<< processNum<< endl;
         }else {
             if (count == 0) {     //deadline
                 d = stoi(inputLine.substr(0));
-                p.deadAndCompTime[d];
+                p[processNum-1].deadline = d;
             } else if (count == 1) {       //computation time
                 c = stoi(inputLine.substr(0));
-                p.deadAndCompTime[d] = c;
+                p[processNum-1].compTime = c;
             }else {
-                p.actions[processNum].push_back(inputLine);
+                p[processNum-1].actions.push_back(inputLine);
             }
             count++;
         }
     }
 
-    /*for (const auto& pair : p.actions) {
-        cout << "Process Number: " << pair.first << endl;
-        cout << "Actions:" << endl;
-        for (const auto& action : pair.second) {
-            cout << action << endl;
-        }
-        cout << endl;
-    }
+    /*for(int i = 0; i < p.size(); i++){
+        cout<<"Process: "<< p[i].processNum<< endl;
+        cout<< "Deadline: "<< p[i].deadline<< endl;
+        cout<< "Computation Time: "<< p[i].compTime<< endl;
 
-    cout << "Deadlines and Computation Times:" << endl;
-    for (const auto& pair : p.deadAndCompTime) {
-        cout << "Deadline: " << pair.first << ", Computation Time: " << pair.second << endl;
+        cout<< "Actions:"<< endl;
+        for(int x = 0; x < p[i].actions.size(); x++){
+            cout<< p[i].actions[x]<< endl;
+        }
+        cout<< endl;
     }
      */
 
 
 //------------------------------------------------------------------------------------------------------------
-//Resource Management:
-
-
-
-//------------------------------------------------------------------------------------------------------------
-//Process Management:
-
-
-//------------------------------------------------------------------------------------------------------------
-//Deadlock Avoidance(Banker's Algorithm)
-
-//------------------------------------------------------------------------------------------------------------
-//Completion
-
+//Scheduling
+    scheduler(p);
 
 //------------------------------------------------------------------------------------------------------------
 //Output
