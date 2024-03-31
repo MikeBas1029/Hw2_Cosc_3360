@@ -5,11 +5,15 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
-#include <sstream>
 #include <limits>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/sem.h>
+#include <chrono>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 //compile to test g++ -o test main.cpp
 using namespace std;
@@ -29,6 +33,29 @@ struct process{
     vector<string> actions;
 };
 
+struct Semaphore{   //binary Semaphore for wait/signal
+    private:
+        mutex mtx;
+        condition_variable cv;
+        size_t avail;
+    public:
+        explicit Semaphore(int avail_ = 1) : avail(avail_){}
+
+        void wait(){
+            unique_lock<mutex> lock(mtx);
+            cv.wait(lock,[this] {return avail > 0;});
+            avail--;
+        }
+        void signal(){
+            unique_lock<mutex> lock(mtx);
+            avail++;
+            cv.notify_one();
+        }
+        size_t available() const{
+            return avail;
+        }
+};
+
 //------------------------------------------------------------------------------------------------------------
 //Functions:
 
@@ -43,7 +70,7 @@ vector<process> scheduler(vector<process>& p){       //EDF Algorithm
     sort(p.begin(), p.end(), compareTasks);
 
     for (const process& task : p) {
-        // Check for schedulability (EDF is schedulable if total execution time <= period for all tasks)
+        // Check for schedulability
         int totalExecutionTime = 0;
         for (const process& t : scheduledProcess) {
             if (t.deadline >= task.deadline) {
@@ -51,12 +78,12 @@ vector<process> scheduler(vector<process>& p){       //EDF Algorithm
             }
         }
         if (totalExecutionTime + task.compTime > currTime + task.deadline) {
-            cerr << "Error: Task " << task.processNum << " cannot be scheduled! EDF is not schedulable." << endl;
-            return scheduledProcess; // Indicate an unschedulable scenario
+            cerr << "Error: Task " << task.processNum << " cannot be scheduled! EDF is not scheduled." << endl;
+            return scheduledProcess; // Indicate an unscheduled scenario
         }
 
         // Schedule the task (start time is current ti
-        scheduledProcess.push_back({task.amount, task.processNum, task.deadline, task.compTime});
+        scheduledProcess.push_back({task.amount, task.processNum, task.deadline, task.compTime, task.actions});
         currTime += task.compTime;
     }
 
@@ -72,7 +99,8 @@ bool isSafe(){
 }
 
 bool request(int val){  //semaphore
-
+    cout<< "request has been called\n";
+    return true;
 }
 
 void release(int val){  //semaphore
@@ -97,6 +125,7 @@ int main(int argc, char** argv) {
 
     vector<resource> resources;
     vector<process> p;
+    Semaphore accessSema(1);
     string masterString;
 
 //------------------------------------------------------------------------------------------------------------
@@ -253,7 +282,6 @@ int main(int argc, char** argv) {
     }
      */
 
-
 //------------------------------------------------------------------------------------------------------------
 //Scheduling
     vector<process> scheduledTasks = scheduler(p);
@@ -269,10 +297,36 @@ int main(int argc, char** argv) {
 //------------------------------------------------------------------------------------------------------------
 //Process Management(Semaphores)
 
-    for(int i = 0; i < scheduledTasks.size(); i++){
+    for(auto & scheduledTask : scheduledTasks){
+        cout<< "Process #"<< scheduledTask.processNum<< endl;
+        for(auto & action : scheduledTask.actions){
+            accessSema.wait();
+
+            if(action.find("request") != string::npos){
+                //cout<< action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))<< endl;
+                request(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
+                //cout<< "calling requesting\n";
+            }else if(action.find("release") != string::npos){
+
+                //cout<< "calling release\n";
+            }else if(action.find("calculate") != string::npos){
+
+                //cout<< "calling calculate\n";
+            }else if(action.find("use_resources") != string::npos){
+
+                //cout<< "calling resources\n";
+            }else if(action.find("print_resources_used") != string::npos){
+
+                //cout<< "calling print resources\n";
+            }else if(action.find("end.") != string::npos){
+
+                //cout<< "calling end\n";
+            }
+
+            accessSema.signal();
+        }
 
     }
-
 
     return 0;
 }
