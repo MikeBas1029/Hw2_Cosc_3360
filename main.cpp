@@ -17,6 +17,7 @@
 
 //compile to test g++ -o test main.cpp
 using namespace std;
+
 //------------------------------------------------------------------------------------------------------------
 //Structs:
 
@@ -55,6 +56,10 @@ struct Semaphore{   //binary Semaphore for wait/signal
             return avail;
         }
 };
+
+//------------------------------------------------------------------------------------------------------------
+//Global functions:
+    Semaphore accessSema(1);
 
 //------------------------------------------------------------------------------------------------------------
 //Functions:
@@ -119,13 +124,43 @@ void useResource(){
 
 }
 
+void processAction(process task){
+    cout<< "Process #"<< task.processNum<< endl;
+    for(auto & action : task.actions){
+        accessSema.wait();
+
+        if(action.find("request") != string::npos){
+            //cout<< action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))<< endl;
+            request(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
+            //cout<< "calling requesting\n";
+        }else if(action.find("release") != string::npos){
+
+            //cout<< "calling release\n";
+        }else if(action.find("calculate") != string::npos){
+
+            //cout<< "calling calculate\n";
+        }else if(action.find("use_resources") != string::npos){
+
+            //cout<< "calling resources\n";
+        }else if(action.find("print_resources_used") != string::npos){
+
+            //cout<< "calling print resources\n";
+        }else if(action.find("end.") != string::npos){
+
+            //cout<< "calling end\n";
+        }
+
+        accessSema.signal();
+    }
+}
+
 //------------------------------------------------------------------------------------------------------------
 
 int main(int argc, char** argv) {
 
     vector<resource> resources;
     vector<process> p;
-    Semaphore accessSema(1);
+    vector<thread> workingThreads;
     string masterString;
 
 //------------------------------------------------------------------------------------------------------------
@@ -297,35 +332,13 @@ int main(int argc, char** argv) {
 //------------------------------------------------------------------------------------------------------------
 //Process Management(Semaphores)
 
-    for(auto & scheduledTask : scheduledTasks){
-        cout<< "Process #"<< scheduledTask.processNum<< endl;
-        for(auto & action : scheduledTask.actions){
-            accessSema.wait();
+    for(auto &scheduledTask : scheduledTasks){          //creating concurrency w/threads
+        thread workThread(&processAction, scheduledTask);
+        workingThreads.push_back(std::move(workThread));
+    }
 
-            if(action.find("request") != string::npos){
-                //cout<< action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))<< endl;
-                request(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
-                //cout<< "calling requesting\n";
-            }else if(action.find("release") != string::npos){
-
-                //cout<< "calling release\n";
-            }else if(action.find("calculate") != string::npos){
-
-                //cout<< "calling calculate\n";
-            }else if(action.find("use_resources") != string::npos){
-
-                //cout<< "calling resources\n";
-            }else if(action.find("print_resources_used") != string::npos){
-
-                //cout<< "calling print resources\n";
-            }else if(action.find("end.") != string::npos){
-
-                //cout<< "calling end\n";
-            }
-
-            accessSema.signal();
-        }
-
+    for (auto &workerThread : workingThreads) {
+        workerThread.join();
     }
 
     return 0;
