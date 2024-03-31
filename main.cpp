@@ -95,14 +95,6 @@ vector<process> scheduler(vector<process>& p){       //EDF Algorithm
     return scheduledProcess;
 }
 
-void calcNeed(){
-
-}
-
-bool isSafe(){
-
-}
-
 bool request(int val){  //semaphore
     cout<< "request has been called\n";
     return true;
@@ -112,7 +104,11 @@ void release(int val){  //semaphore
 
 }
 
-void destroy(){
+void calcNeed(){
+
+}
+
+bool isSafe(){
 
 }
 
@@ -124,34 +120,39 @@ void useResource(){
 
 }
 
-void processAction(process task){
-    cout<< "Process #"<< task.processNum<< endl;
+void printResource(){
+
+}
+
+void processAction(const process& task){
+    accessSema.wait();
     for(auto & action : task.actions){
-        accessSema.wait();
+        //accessSema.wait();
 
         if(action.find("request") != string::npos){
             //cout<< action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))<< endl;
             request(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
             //cout<< "calling requesting\n";
         }else if(action.find("release") != string::npos){
-
+            release(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
             //cout<< "calling release\n";
         }else if(action.find("calculate") != string::npos){
-
+            calculate(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
             //cout<< "calling calculate\n";
         }else if(action.find("use_resources") != string::npos){
-
+            useResource();
             //cout<< "calling resources\n";
         }else if(action.find("print_resources_used") != string::npos){
-
+            printResource();
             //cout<< "calling print resources\n";
         }else if(action.find("end.") != string::npos){
-
+            //continue;
             //cout<< "calling end\n";
         }
 
-        accessSema.signal();
+        //accessSema.signal();
     }
+    accessSema.signal();
 }
 
 //------------------------------------------------------------------------------------------------------------
@@ -249,8 +250,8 @@ int main(int argc, char** argv) {
                 resources[count].instance[type];//adding the type into the key of the instance map
 
                 while (getline(ss, inst, ',')) {
-                    size_t start = inst.find_first_not_of(" ");
-                    size_t end = inst.find_last_not_of(" ");
+                    size_t start = inst.find_first_not_of(' ');
+                    size_t end = inst.find_last_not_of(' ');
 
                     if (start != string::npos && end != string::npos) {
                         inst = inst.substr(start, end - start + 1);
