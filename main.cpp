@@ -32,25 +32,35 @@ struct process{
 //------------------------------------------------------------------------------------------------------------
 //Functions:
 
-void scheduler(vector<process>& p){       //EDF & LJF Algorithm
-    sort(p.begin(), p.end(), [](const process& a, const process& b) {
-        return a.deadline < b.deadline;
-    });
+bool compareTasks(const process& a, const process& b) {
+    return a.deadline < b.deadline;
+}
 
-    int currentTime = 0;
-    for (auto& proc : p) {
-        while (currentTime < proc.deadline && proc.compTime > 0) {
-            cout << "Executing task for process " << proc.processNum << " with deadline: " << proc.deadline << endl;
-            proc.compTime--;
-            currentTime++;
+vector<process> scheduler(vector<process>& p){       //EDF Algorithm
+    vector<process> scheduledProcess;
+    int currTime = 0;
+
+    sort(p.begin(), p.end(), compareTasks);
+
+    for (const process& task : p) {
+        // Check for schedulability (EDF is schedulable if total execution time <= period for all tasks)
+        int totalExecutionTime = 0;
+        for (const process& t : scheduledProcess) {
+            if (t.deadline >= task.deadline) {
+                totalExecutionTime += t.compTime;
+            }
+        }
+        if (totalExecutionTime + task.compTime > currTime + task.deadline) {
+            cerr << "Error: Task " << task.processNum << " cannot be scheduled! EDF is not schedulable." << endl;
+            return scheduledProcess; // Indicate an unschedulable scenario
         }
 
-        if (proc.compTime <= 0) {
-            cout << "Process " << proc.processNum << " completed." << endl;
-        } else {
-            cout << "Process " << proc.processNum << " missed its deadline." << endl;
-        }
+        // Schedule the task (start time is current ti
+        scheduledProcess.push_back({task.amount, task.processNum, task.deadline, task.compTime});
+        currTime += task.compTime;
     }
+
+    return scheduledProcess;
 }
 
 void calcNeed(){
@@ -87,6 +97,7 @@ int main(int argc, char** argv) {
 
     vector<resource> resources;
     vector<process> p;
+    string masterString;
 
 //------------------------------------------------------------------------------------------------------------
 //File reading:
@@ -245,10 +256,22 @@ int main(int argc, char** argv) {
 
 //------------------------------------------------------------------------------------------------------------
 //Scheduling
-    scheduler(p);
+    vector<process> scheduledTasks = scheduler(p);
+
+    /*if (!scheduledTasks.empty()) {
+        cout << "Scheduled Tasks (ID, Computation Time, Deadline):" << endl;
+        for (const process& task : scheduledTasks) {
+            cout << task.processNum << "  " << task.compTime << "  " << task.deadline << endl;
+        }
+    }
+     */
 
 //------------------------------------------------------------------------------------------------------------
-//Output
+//Process Management(Semaphores)
+
+    for(int i = 0; i < scheduledTasks.size(); i++){
+
+    }
 
 
     return 0;
