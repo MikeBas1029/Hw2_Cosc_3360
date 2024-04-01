@@ -16,10 +16,19 @@
 #include <condition_variable>
 
 //compile to test g++ -o test main.cpp
+//compile w/threads g++ -o test main.cpp -pthread
 using namespace std;
 
 //------------------------------------------------------------------------------------------------------------
 //Structs:
+struct BankerData{
+    int max[50][50]; // large number to make sure it'll fix. but I can adjust it if it needs to resized
+    int allocation[50][50];
+    int available[50];
+    int need[50][50];
+    int row;        //reference to num of processes
+    int column;     //reference to num of resources
+};
 
 struct resource{
     map<string, vector<string>> instance;   //key will be the type and the value is the
@@ -60,7 +69,7 @@ struct Semaphore{   //binary Semaphore for wait/signal
 //------------------------------------------------------------------------------------------------------------
 //Global functions:
     Semaphore accessSema(1);
-
+    BankerData bankerData;
 //------------------------------------------------------------------------------------------------------------
 //Functions:
 
@@ -83,11 +92,11 @@ vector<process> scheduler(vector<process>& p){       //EDF Algorithm
             }
         }
         if (totalExecutionTime + task.compTime > currTime + task.deadline) {
-            cerr << "Error: Task " << task.processNum << " cannot be scheduled! EDF is not scheduled." << endl;
+            cerr << "Error: Task " << task.processNum << " cannot be scheduled. EDF is not scheduled." << endl;
             return scheduledProcess; // Indicate an unscheduled scenario
         }
 
-        // Schedule the task (start time is current ti
+        // Schedule the task
         scheduledProcess.push_back({task.amount, task.processNum, task.deadline, task.compTime, task.actions});
         currTime += task.compTime;
     }
@@ -95,21 +104,79 @@ vector<process> scheduler(vector<process>& p){       //EDF Algorithm
     return scheduledProcess;
 }
 
-bool request(int val){  //semaphore
-    cout<< "request has been called\n";
-    return true;
-}
-
-void release(int val){  //semaphore
-
-}
-
 void calcNeed(){
-
+    for(int r = 0; r < bankerData.row; r++){
+        for(int c = 0; c < bankerData.column; c++){
+            bankerData.need[r][c] = bankerData.max[r][c] - bankerData.allocation[r][c];
+        }
+    }
 }
 
 bool isSafe(){
+    calcNeed();
+    int proc = bankerData.row;
+    int res = bankerData.column;
 
+    bool finish[proc] = {0};
+    int safeSeq[proc];
+    int work[res];
+
+    for(int c = 0; c < res; c++){
+        work[c] = bankerData.available[c];
+    }
+
+    int count = 0;
+    while(count < proc){
+        bool found = false;
+        for(int p = 0; p < proc; p++){
+            if(finish[p] == 0){
+                int c;
+                for(c = 0; c < res; c++){
+                    if(bankerData.need[proc][c] > work[c])
+                        break;
+                }
+                if(c == res){
+                    for(int i = 0; i < res; i++){
+                        work[i] += bankerData.allocation[proc][i];
+                    }
+                    safeSeq[count++] = proc;
+                    finish[proc] = 1;
+                    found = true;
+                }
+            }
+        }
+        if(!found){
+           cout<< "System not in safe state\n";
+            return false;
+        }
+    }
+    cout << "System is in safe state.\nSafe"
+            " sequence is: ";
+    for (int i = 0; i < proc; i++) {
+        cout << safeSeq[i] << " ";
+    }
+    cout<< endl;
+    return true;
+}
+
+void request(int rAndValRequest){  //Banker's Algo if it's a x by 1 matrix
+    //cout<< "request has been called\n";
+    bankerData.allocation[rAndValRequest][1] = rAndValRequest;
+    isSafe();
+}
+void request(int r, int c, int valRequest){  //Banker's Algo if it's a x by y matrix
+    //cout<< "request has been called\n";
+    bankerData.allocation[r][c] = valRequest;
+    isSafe();
+}
+
+void release(int r){  //
+    bankerData.allocation[r] = 0;
+    isSafe();
+}
+void release(int r, int c, int val){  //semaphore
+    bankerData.allocation[r][c] = val;
+    isSafe();
 }
 
 void calculate(int val){
@@ -124,20 +191,23 @@ void printResource(){
 
 }
 
-void processAction(const process& task){
+void processAction(process task){
     accessSema.wait();
     for(auto & action : task.actions){
         //accessSema.wait();
 
         if(action.find("request") != string::npos){
             //cout<< action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))<< endl;
-            request(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
+            int val = stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('(')));
+            request(val);
             //cout<< "calling requesting\n";
         }else if(action.find("release") != string::npos){
-            release(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
+            int val = stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('(')));
+            release(val);
             //cout<< "calling release\n";
         }else if(action.find("calculate") != string::npos){
-            calculate(stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))));
+            int val = stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('(')));
+            calculate(val);
             //cout<< "calling calculate\n";
         }else if(action.find("use_resources") != string::npos){
             useResource();
@@ -185,10 +255,12 @@ int main(int argc, char** argv) {
         stringstream str(inputLine);
         while (str >> numVal){
             if(i == 0){
+                bankerData.row = numVal;        //for knowing the range for when doing bankers
                 resource r = {.amountRes = numVal};
                 resources.push_back(r);
                 //cout<< "Resources: "<< resources.at(0).amountRes<< endl;
             } else if(i == 1){
+                bankerData.column = numVal;     //for knowing the range for when doing bankers
                 process proc = {.amount = numVal};
                 p.push_back(proc);
                 //cout<< "Processes: "<<  processes.at(0).amount<< endl;
@@ -196,22 +268,23 @@ int main(int argc, char** argv) {
         }
     }
 
-    int max[resources.at(0).amountRes][p[0].amount];
+    //Info for Banker's Avoidance
+    /*int max[resources.at(0).amountRes][p[0].amount];
     int allocation[resources[0].amountRes][p[0].amount];
-    int available[resources[0].amountRes];
+    int available[resources[0].amountRes];*/
 
-    for(int i = 0; i < 3; i++){
+    for(int i = 0; i < p[0].amount+1; i++){
         getline(file1, inputLine);
         if(inputLine.find("available") != string::npos){
             int index = stoi(inputLine.substr(inputLine.find("available") + 10, 1)) - 1;
-            available[index] = stoi(inputLine.substr(inputLine.find('=')+1));
+            bankerData.available[index] = stoi(inputLine.substr(inputLine.find('=')+1));
             //cout<< inputLine.substr(inputLine.find("available") + 10, 1)<< endl;
             //cout<< inputLine.substr(inputLine.find('=')+1)<< endl;
         }
         if(inputLine.find("max") != string::npos) {
             int row = stoi(inputLine.substr(inputLine.find("max") + 4, 1)) - 1;
             int col = stoi(inputLine.substr(inputLine.find("max") + 6, 1)) - 1;
-            max[row][col] = stoi(inputLine.substr(inputLine.find('=')+1));
+            bankerData.max[row][col] = stoi(inputLine.substr(inputLine.find('=')+1));
             //cout<< row<< endl;
             //cout<< col<< endl;
         }
@@ -219,7 +292,7 @@ int main(int argc, char** argv) {
 
     for(int r = 0; r < resources[0].amountRes; r++){         //filling up allocation matrix to contain 0's
         for(int c = 0; c < p[0].amount; c++){
-            allocation[r][c] = 0;
+            bankerData.allocation[r][c] = 0;
         }
     }
 
