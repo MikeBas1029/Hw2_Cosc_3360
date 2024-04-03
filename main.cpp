@@ -14,6 +14,8 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <cstdlib>
+#include <ctime>
 
 //compile to test g++ -o test main.cpp
 //compile w/threads g++ -o test main.cpp -pthread
@@ -46,32 +48,35 @@ struct process{     //will contain Laxity & arrival time for tiebreaker in the c
 };
 
 struct Semaphore{   //binary Semaphore for wait/signal
-    private:
-        mutex mtx;
-        condition_variable cv;
-        size_t avail;
-    public:
-        explicit Semaphore(int avail_ = 1) : avail(avail_){}
+private:
+    mutex mtx;
+    condition_variable cv;
+    size_t avail;
+public:
+    explicit Semaphore(int avail_ = 1) : avail(avail_){}
 
-        void wait(){
-            unique_lock<mutex> lock(mtx);
-            cv.wait(lock,[this] {return avail > 0;});
-            avail--;
-        }
-        void signal(){
-            unique_lock<mutex> lock(mtx);
-            avail++;
-            cv.notify_one();
-        }
-        size_t available() const{
-            return avail;
-        }
+    void wait(){
+        unique_lock<mutex> lock(mtx);
+        cv.wait(lock,[this] {return avail > 0;});
+        avail--;
+    }
+    void signal(){
+        unique_lock<mutex> lock(mtx);
+        avail++;
+        cv.notify_one();
+    }
+    size_t available() const{
+        return avail;
+    }
 };
 
 //------------------------------------------------------------------------------------------------------------
 //Global functions:
-    Semaphore accessSema(1);
-    BankerData bankerData;
+Semaphore accessSema(1);
+BankerData bankerData;
+vector<process> p;
+vector<resource> resources;
+string masterString;
 //------------------------------------------------------------------------------------------------------------
 //Functions:
 
@@ -82,7 +87,7 @@ void sortLLF(vector<process>::iterator begin, vector<process>::iterator end, int
 
 bool compareTasks(const process& a, const process& b) {
     return a.deadline < b.deadline;
-} 
+}
 
 vector<process> scheduler(vector<process>& p){       //EDF Algorithm
     vector<process> scheduledProcess;
@@ -162,7 +167,7 @@ bool isSafe(){
             }
         }
         if(!found){
-           cout<< "System not in safe state\n";
+            cout<< "System not in safe state\n";
             return false;
         }
     }
@@ -184,8 +189,7 @@ void request(int rAndValRequest){
 }
 void request(int r, int c, int valRequest){
     cout<< "Requesting: ("<< r<< ", "<< c<< ") = "<< valRequest<< endl;
-    r--;
-    c--;
+    r--; c--;
     bankerData.allocation[r][c] = valRequest;
     isSafe();       //Banker's Algo check if it's an x by y matrix
 }
@@ -196,24 +200,78 @@ void release(int r){
     bankerData.allocation[r][1] = 0;
     isSafe();       //Banker's Algo check if it's an x by 1 matrix
 }
-void release(int r, int c, int valRelease){  //semaphore
+void release(int r, int c, int valRelease){
     cout<< "Releasing: ("<< r<< ", "<< c<< ") = "<< valRelease<< endl;
-    r--;
-    c--;
+    r--; c--;
     bankerData.allocation[r][c] = valRelease;
     isSafe();       //Banker's Algo check if it's an x by y matrix
 }
 
-void calculate(int val){
-    cout<< "Calculating: "<< val<< endl;
+void calculate(int procNum, int val){
+    cout<< "Calculating: "<< val<< endl; //<< " into process #"<< procNum<<
+    p[procNum-1].compTime += val;
 }
 
 void useResource(int val1, int val2){
     cout<< "Using Resource: ("<< val1<< ", "<< val2<< ")"<< endl;
+
+    resource res = resources[val1-1];
+    auto it = res.instance.begin();
+    string key = it->first;
+    vector<string> strings = it->second;
+    int randomStringIndex = rand() % strings.size();
+    //cout<< "Random instance: "<< strings[randomStringIndex]<< endl;
+    if(masterString.find(key) != string::npos){
+        masterString+= ", " + strings[randomStringIndex];
+    }else{
+        masterString += key + ": " + strings[randomStringIndex];
+    }
+
+    p[val1-1].compTime -= val1;     //reducing computation time after execution
+    //cout<< masterString<< endl;
 }
 
-void printResource(){
+string orderProperly(string masStr){
+    int coloPos = masStr.find(':');
+    string sectionToSort = masStr.substr(coloPos + 2);
 
+    vector<string> instList;
+    int start = 0;
+    int commaPos = sectionToSort.find(',');
+    while(commaPos != string::npos){
+        instList.push_back(sectionToSort.substr(start, commaPos - start));
+        start = commaPos + 2;
+        commaPos = sectionToSort.find(',', start);
+    }
+
+    instList.push_back(sectionToSort.substr(start));     //last instance in masterString
+
+    sort(instList.begin(), instList.end());
+
+    for(int i = 0; i < instList.size() - 1; i++){
+        if(instList[i] == instList[i+1]){
+            instList.erase(instList.begin() + i + 1);
+            instList[i] += "s";
+        }
+    }
+
+    string sorted;
+    for(const string& inst: instList){
+        sorted += inst + ", ";
+    }
+
+    sorted.erase(sorted.length() - 2);
+
+    sorted = masStr.substr(0, masStr.find(':')+2) + sorted;
+
+    return sorted;
+}
+
+void printResource(int procNum){
+    masterString = orderProperly(masterString);         //updating masterString to remove duplicates and be in order alphabetically
+    cout<< "Printing out used resources ->"<< masterString<< endl;
+
+    p[procNum-1].compTime--;        //reducing computation time after execution
 }
 
 vector<int> extractNumbers(const string& str) {
@@ -232,7 +290,7 @@ vector<int> extractNumbers(const string& str) {
 
     return numbers;
 }
-//g
+
 void processAction(process task){
     bool twoInts;
     accessSema.wait();
@@ -243,32 +301,28 @@ void processAction(process task){
         }else{
             twoInts = false;
         }
-        if((action.find("request") != string::npos) && !twoInts){
+        if((action.find("request") != string::npos)){
             //cout<< action.substr(action.find('(')+1, action.find(')')-1 - action.find('('))<< endl;
             if(twoInts){
                 vector<int> numbers = extractNumbers(action);
                 request(numbers[0], numbers[1], numbers[2]);
             }else{
-            int val = stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('(')));
-            request(val);
+                int val = stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('(')));
+                request(val);
             }
         }else if(action.find("release") != string::npos){
             int val = stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('(')));
             release(val);
         }else if(action.find("calculate") != string::npos){
             int val = stoi(action.substr(action.find('(')+1, action.find(')')-1 - action.find('(')));
-            calculate(val);
+            calculate(task.processNum, val);
         }else if(action.find("use_resources") != string::npos){
             int one = stoi(action.substr(action.find('(')+1, 1));
             int two = stoi(action.substr(action.find(',')+1, 1));
             useResource(one ,two);
-            //cout<< "calling resources\n";
         }else if(action.find("print_resources_used") != string::npos){
-            printResource();
-            //cout<< "calling print resources\n";
+            printResource(task.processNum);
         }else if(action.find("end.") != string::npos){
-            //continue;
-            //cout<< "calling end\n";
             cout<< endl;
         }
 
@@ -281,10 +335,7 @@ void processAction(process task){
 
 int main(int argc, char** argv) {
 
-    vector<resource> resources;
-    vector<process> p;
     vector<thread> workingThreads;
-    string masterString;
 
 //------------------------------------------------------------------------------------------------------------
 //File reading:
@@ -460,9 +511,9 @@ int main(int argc, char** argv) {
 //Process Management(Semaphores)
 
     for(auto &scheduledTask : scheduledTasks){          //creating concurrency w/threads
+        cout<< "Process #"<< scheduledTask.processNum<< " -> (Deadline: "<< scheduledTask.deadline<< ", Computation Time: "<< scheduledTask.compTime<< ")"<< endl;
         thread workThread(&processAction, scheduledTask);
         workingThreads.push_back(std::move(workThread));
-        cout<< "Process #"<< scheduledTask.processNum<< " -> (Deadline: "<< scheduledTask.deadline<< ", Computation Time: "<< scheduledTask.compTime<< ")"<< endl;
     }
 
     for (auto &workerThread : workingThreads) {
