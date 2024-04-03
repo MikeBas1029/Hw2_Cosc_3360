@@ -30,6 +30,15 @@ struct BankerData{
     int column;     //reference to num of resources
 };
 
+struct Tasks{       //struct for Tie break(LLF Scheduler)
+    int id;
+    int arrivalTime;
+    int executionTime;
+    int deadline;
+    int laxity;
+
+};
+
 struct resource{
     map<string, vector<string>> instance;   //key will be the type and the value is the
     int amountRes = 0;
@@ -73,9 +82,39 @@ struct Semaphore{   //binary Semaphore for wait/signal
 //------------------------------------------------------------------------------------------------------------
 //Functions:
 
+
+bool compareLaxity(const Task& a, const Task& b) {
+    return a.laxity < b.laxity;
+}
+
+void calculateLaxity(Task& task, int currentTime) {
+    task.laxity = task.deadline - task.executionTime - currentTime;
+}
+
+void LlfScheduler(vector<Task>& tasks, int schedulingTime) {
+    int currTime = 0;
+    while (currTime < schedulingTime && !tasks.empty()) {
+        // Calculate laxity for each task
+        for (Task& task : tasks) {
+            calculateLaxity(task, currTime);
+        }
+
+        // Sort tasks based on laxity
+        sort(tasks.begin(), tasks.end(), compareLaxity);
+
+        // Execute the task with the least laxity
+        Task currTask = tasks.front();
+        tasks.erase(tasks.begin()); // Remove the scheduled task from the queue
+        cout << "Executing Task " << currTask.id << " from time " << currTime << " to " << currTime + currTask.executionTime << endl;
+
+        // Update current time
+        currTime += currTask.executionTime;
+    }
+}
+
 bool compareTasks(const process& a, const process& b) {
     return a.deadline < b.deadline;
-}
+} 
 
 vector<process> scheduler(vector<process>& p){       //EDF Algorithm
     vector<process> scheduledProcess;
