@@ -232,7 +232,7 @@ vector<int> extractNumbers(const string& str) {
 
     return numbers;
 }
-
+//g
 void processAction(process task){
     bool twoInts;
     accessSema.wait();
